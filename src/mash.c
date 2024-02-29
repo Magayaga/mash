@@ -482,7 +482,7 @@ int main(int argc, char* argv[]) {
         }
 
         else if (strcmp(buffer, "mash --version") == 0) {
-            printf("MASH (Magayaga Automation Shell) | Version: v1.0-preview10\n");
+            printf("MASH (Magayaga Automation Shell) | Version: v1.0\n");
             printf("Copyright (c) 2023 Cyril John Magayaga\n");
             printf("MIT License: <https://opensource.org/license/mit/>\n");
         }
