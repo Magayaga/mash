@@ -3,8 +3,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <stdbool.h>
-#include <time.h>
-#include <signal.h>
+#include <unistd.h>
 #include "color.c"
 
 #define BUFFER_SIZE 1024
