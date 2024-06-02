@@ -4,11 +4,13 @@
 #include <dirent.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <signal.h>
 #include "color.c"
 
 #define BUFFER_SIZE 1024
 #define HISTORY_FILE ".mash_history"
 
+// Check if the operating system is Windows
 bool is_windows() {
 #ifdef _WIN32
     return true;
@@ -43,22 +45,19 @@ HistoryNode* add_to_history(HistoryNode* head, const char* command) {
     return new_node;
 }
 
-void save_history_to_file(HistoryNode* head) {
-    FILE* history_file = fopen(HISTORY_FILE, "w");
+// Append a command to the history file
+void append_history_to_file(const char* command) {
+    FILE* history_file = fopen(HISTORY_FILE, "a");
     if (history_file == NULL) {
-        perror("Error opening history file for writing");
+        perror("Error opening history file for appending");
         return;
     }
 
-    HistoryNode* current = head;
-    while (current != NULL) {
-        fprintf(history_file, "%s\n", current->command);
-        current = current->next;
-    }
-
+    fprintf(history_file, "%s\n", command);
     fclose(history_file);
 }
 
+// Load history from file
 HistoryNode* load_history_from_file() {
     FILE* history_file = fopen(HISTORY_FILE, "r");
     if (history_file == NULL) {
@@ -99,430 +98,174 @@ void handle_exit_command() {
     exit_requested = true;
 }
 
+// Execute a command
 void execute_command(char* command) {
-    if (strncmp(command, "cat ", 4) == 0) {
-        // Handle "cat" command
-        char* filename = command + 4; // Skip "cat " to get the filename
-        FILE* file = fopen(filename, "r");
+    char* args[BUFFER_SIZE];
+    int i = 0;
 
-        if (file) {
-            char buffer[BUFFER_SIZE];
-            while (fgets(buffer, BUFFER_SIZE, file) != NULL) {
-                printf("%s", buffer);
-            }
-            fclose(file);
-        }
+    // Tokenize the input command
+    char* token = strtok(command, " ");
+    while (token != NULL) {
+        args[i++] = token;
+        token = strtok(NULL, " ");
+    }
+    args[i] = NULL;
 
-        else {
-            printf("Error: File not found or unable to open.\n");
-        }
+    if (args[0] == NULL) {
+        return; // No command entered
     }
 
-    else if (strcmp(command, "ls ") == 0) {
+    if (strcmp(args[0], "exit") == 0) {
+        handle_exit_command();
+    }
+    
+    else if (strcmp(args[0], "cat") == 0) {
+        if (args[1] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./cat %s", args[1]);
+            system(command);
+        }
+        
+        else {
+            printf("Usage: cat <filename>\n");
+        }
+    }
+    else if (strncmp(command, "ls", 2) == 0) {
         // Handle "ls" command
-        DIR* dir = opendir(".");
-        if (dir) {
-             struct dirent* entry;
-             while ((entry = readdir(dir)) != NULL) {
-                   printf("%s\n", entry->d_name);
-             }
-             closedir(dir);
+        char ls_command[BUFFER_SIZE];
+        snprintf(ls_command, sizeof(ls_command), "./ls %s", command + 3);
+        system(ls_command);
+    }
+
+    else if (strcmp(args[0], "cp") == 0) {
+        if (args[1] != NULL && args[2] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./cp %s %s", args[1], args[2]);
+            system(command);
         }
         else {
-             printf("Error: Unable to open directory.\n");
+            printf("Usage: cp <source> <destination>\n");
         }
     }
-
-    else if (strncmp(command, "cp ", 3) == 0) {
-        // Handle "cp" command
-        char* src_filename = strtok(command + 3, " "); // Skip "cp " to get the source filename
-        char* dest_filename = strtok(NULL, " "); // Get the destination filename
-
-        FILE* src_file = fopen(src_filename, "r");
-        FILE* dest_file = fopen(dest_filename, "w");
-
-        if (src_file && dest_file) {
-            char buffer[BUFFER_SIZE];
-            size_t bytes_read;
-            while ((bytes_read = fread(buffer, 1, BUFFER_SIZE, src_file)) > 0) {
-                fwrite(buffer, 1, bytes_read, dest_file);
-            }
-            fclose(src_file);
-            fclose(dest_file);
-            printf("File copied successfully.\n");
+    
+    else if (strcmp(args[0], "mv") == 0) {
+        if (args[1] != NULL && args[2] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./mv %s %s", args[1], args[2]);
+            system(command);
         }
-
-            else {
-            printf("Error: Unable to copy file.\n");
-        }
-    }
-
-    else if (strncmp(command, "mv ", 3) == 0) {
-        // Handle "mv" command
-        char* src_filename = strtok(command + 3, " "); // Skip "mv " to get the source filename
-        char* dest_filename = strtok(NULL, " "); // Get the destination filename
-
-        if (rename(src_filename, dest_filename) == 0) {
-            printf("File moved successfully.\n");
-        }
-
-            else {
-            printf("Error: Unable to move file.\n");
-        }
-    }
-
-    else if (strncmp(command, "rm ", 3) == 0) {
-        // Handle "rm" command
-        char* filename = command + 3; // Skip "rm " to get the filename
-
-        if (remove(filename) == 0) {
-            printf("File removed successfully.\n");
-        }
-
-            else {
-            printf("Error: Unable to remove file.\n");
-        }
-    }
-
-    else if (strncmp(command, "mkdir ", 6) == 0) {
-        // Handle "mkdir" command
-        char* dirname = command + 6; // Skip "mkdir " to get the directory name
-
-        if (mkdir(dirname) == 0) {
-            printf("Directory created successfully.\n");
-        }
-
-            else {
-            printf("Error: Unable to create directory.\n");
-        }
-    }
-
-    else if (strncmp(command, "rmdir ", 6) == 0) {
-        // Handle "rmdir" command
-        char* dirname = command + 6; // Skip "rmdir " to get the directory name
-
-        if (rmdir(dirname) == 0) {
-            printf("Directory removed successfully.\n");
-        }
-
-            else {
-            printf("Error: Unable to remove directory.\n");
-        }
-    }
-
-    else if (strncmp(command, "cd ", 3) == 0) {
-        // Handle "cd" command
-        char* dirname = command + 3; // Skip "cd " to get the directory name
-
-        if (chdir(dirname) == 0) {
-            printf("Changed directory to '%s'\n", dirname);
-        }
-
-            else {
-            printf("Error: Unable to change directory.\n");
-        }
-    }
-
-    else {
-        // Other commands, execute using system()
-        system(command);
-    }
-}
-
-// Function to execute the command
-void calculator_command(char* command, char* args[]) {
-    // Add your custom commands here
-    if (strcmp(command, "hello") == 0) {
-        printf("Hello, World!\n");
-    }
-
-    else if (strcmp(command, "add") == 0) {
-        if (args[0] != NULL && args[1] != NULL) {
-            int a = atoi(args[0]);
-            int b = atoi(args[1]);
-            printf("Result: %d\n", a + b);
-        }
-
-            else {
-            printf("Invalid arguments for add command.\n");
-        }
-    }
-
-    else if (strcmp(command, "sub") == 0) {
-        if (args[0] != NULL && args[1] != NULL) {
-            int a = atoi(args[0]);
-            int b = atoi(args[1]);
-            printf("Result: %d\n", a - b);
-        }
-
-            else {
-            printf("Invalid arguments for sub command.\n");
-        }
-    }
-
-    else if (strcmp(command, "mul") == 0) {
-        if (args[0] != NULL && args[1] != NULL) {
-            int a = atoi(args[0]);
-            int b = atoi(args[1]);
-            printf("Result: %d\n", a * b);
-        }
-
-            else {
-            printf("Invalid arguments for mul command.\n");
-        }
-    }
-
-    else if (strcmp(command, "div") == 0) {
-        if (args[0] != NULL && args[1] != NULL) {
-            int a = atoi(args[0]);
-            int b = atoi(args[1]);
-            if (b != 0) {
-                printf("Result: %.2f\n", (float)a / b);
-            } else {
-                printf("Error: Division by zero!\n");
-            }
-        }
-
         else {
-            printf("Invalid arguments for div command.\n");
+            printf("Usage: mv <source> <destination>\n");
         }
     }
-
+    
+    else if (strcmp(args[0], "rm") == 0) {
+        if (args[1] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./rm %s", args[1]);
+            system(command);
+        }
+        
+        else {
+            printf("Usage: rm <filename>\n");
+        }
+    }
+    
+    else if (strcmp(args[0], "mkdir") == 0) {
+        if (args[1] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./mkdir %s", args[1]);
+            system(command);
+        }
+        
+        else {
+            printf("Usage: mkdir <dirname>\n");
+        }
+    }
+    else if (strcmp(args[0], "rmdir") == 0) {
+        if (args[1] != NULL) {
+            char command[BUFFER_SIZE];
+            snprintf(command, sizeof(command), "./rmdir %s", args[1]);
+            system(command);
+        }
+        
+        else {
+            printf("Usage: rmdir <dirname>\n");
+        }
+    }
+    else if (strcmp(args[0], "cd") == 0) {
+        if (args[1] != NULL) {
+            if (chdir(args[1]) == 0) {
+                printf("Changed directory to '%s'\n", args[1]);
+            }
+            else {
+                printf("Error: Unable to change directory.\n");
+            }
+        }
+        else {
+            printf("Usage: cd <dirname>\n");
+        }
+    }
     else {
-        printf("Unknown command: %s\n", command);
+        char buffer[BUFFER_SIZE];
+        FILE* fp;
+
+        // Open the pipe
+        fp = popen(command, "r");
+        if (fp == NULL) {
+            printf("Failed to run command\n");
+            return;
+        }
+
+        // Read the output of the command
+        while (fgets(buffer, BUFFER_SIZE, fp) != NULL) {
+            printf("%s", buffer);
+        }
+
+        // Close the pipe
+        pclose(fp);
     }
 }
 
-void execute_sh_command(char* command) {
-    FILE* fp;
-    char buffer[BUFFER_SIZE];
-
-    // Open a pipe to execute the command
-    fp = popen(command, "r");
-    if (fp == NULL) {
-        printf("Error: Failed to execute command.\n");
-        return;
-    }
-
-    // Read and print the output of the command
-    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        printf("%s", buffer);
-    }
-
-    // Close the pipe
-    pclose(fp);
+// Execute a Python command
+void execute_python_command(char* command) {
+    char command_buffer[BUFFER_SIZE + 8];
+    snprintf(command_buffer, sizeof(command_buffer), "python -c \"%s\"", command);
+    execute_command(command_buffer);
 }
 
-void execute_time_command(char* command) {
-    // Get the start time
-    clock_t start_time = clock();
+int main() {
+    char input[BUFFER_SIZE];
+    HistoryNode* history = load_history_from_file();
 
-    // Execute the specified command
-    execute_command(command);
-
-    // Get the end time
-    clock_t end_time = clock();
-
-    // Calculate the execution time
-    double time_taken = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-
-    printf("\nExecution time: %f seconds\n", time_taken);
-}
-
-void execute_date_command() {
-    // Execute the "date" command to display the current date and time
-#ifdef _WIN32
-    system("date /T");
-#else
-    system("date");
-#endif
-}
-
-void clear_screen() {
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
-}
-
-// Function to execute non-built-in commands
-void execute_history_command(char* command) {
-    FILE* output_pipe = popen(command, "r");
-    if (output_pipe == NULL) {
-        printf("Error: Failed to execute command.\n");
-    }
-
-    else {
-        // Capture the output of the command
-        char command_output[BUFFER_SIZE];
-        size_t bytes_read = fread(command_output, 1, sizeof(command_output) - 1, output_pipe);
-        command_output[bytes_read] = '\0';
-        printf("%s", command_output);
-        pclose(output_pipe);
-    }
-}
-
-int main(int argc, char* argv[]) {
-
-    // Set up the Ctrl+C signal handler
+    // Register the signal handler for SIGINT (Ctrl+C)
     signal(SIGINT, handle_ctrlc);
 
-    HistoryNode* history_head = load_history_from_file();
-
-    if (argc == 2) {
-       if (strcmp(argv[1], "--help") == 0) {
-           // Display help information and exit
-           printf("MASH (Magayaga Automation Shell)\n");
-           printf("Available commands:\n");
-           printf("  alias <name>=<command>  Define an alias for a command\n");
-           printf("  cd <directory>          Change the current directory\n");
-           printf("  sh                      Execute a shell command\n");
-           printf("  time <command>          Time a simple command\n");
-           printf("  date                    Display the current date and time\n");
-           printf("  history                 Show command history\n");
-           printf("  exit                    Exit the shell\n");
-           return 0;
-       }
-
-       else if (strcmp(argv[1], "--version") == 0) {
-           // Display version information and exit
-           printf("MASH (Magayaga Automation Shell) | Version: v1.0-preview10\n");
-           printf("Copyright (c) 2023 Cyril John Magayaga\n");
-           printf("MIT License: <https://opensource.org/license/mit/>\n");
-       }
-    }
-
-    char buffer[BUFFER_SIZE];
-    char* named_directories[10]; // Maximum 10 named directories
-    char* directory_paths[10];   // Corresponding paths for named directories
-    int num_named_directories = 0;
-
-    while (1) {
-        // Print prompt with current directory
-        char cwd[BUFFER_SIZE];
-        if (getcwd(cwd, sizeof(cwd)) != NULL) {
-            printf("\n%s\n@~ ", cwd);
-        }
-
-        else {
-            printf("Error: Unable to get current directory.\n");
-            break;
-        }
-
-        // Read input
-        if (!fgets(buffer, BUFFER_SIZE, stdin)) {
-            printf("\n");
-            break;
-        }
-        // Remove newline character from input
-        buffer[strcspn(buffer, "\n")] = '\0';
-
-        // Check for named directory commands
-        if (strncmp(buffer, "alias", 6) == 0) {
-            // ... (rest of the alias command handling remains unchanged)
-        }
-
-        else if (strncmp(buffer, "cat", 4) == 0) {
-            // Handle "cat" command
-            printf("Usage: Usage: [OPTION]... [FILE]...\n");
-        }
-
-        else if (strcmp(buffer, "ls") == 0) {
-            // Handle "ls" command
-            DIR* dir = opendir(".");
-
-            if (dir) {
-               struct dirent* entry;
-               while ((entry = readdir(dir)) != NULL) {
-                   printf("%s\n", entry->d_name);
-               }
-               closedir(dir);
-            }
-
-            else {
-               printf("Error: Unable to open directory.\n");
-            }
-
-        }
-
-        else if (strncmp(buffer, "cd", 3) == 0) {
-            // ... (rest of the cd command handling remains unchanged)
-        }
-
-        else if (strcmp(buffer, "sh") == 0) {
-            // ... (rest of the sh command handling remains unchanged)
-        }
-
-        else if (strncmp(buffer, "time", 5) == 0) {
-            // ... (rest of the time command handling remains unchanged)
-        }
-
-        else if (strcmp(buffer, "date") == 0) {
-            // Handle "date" command to display the current date and time
-            execute_date_command();
-        }
-
-        else if (strcmp(buffer, "clear") == 0) {
-            // Handle "clear" command to clear the terminal screen
-            clear_screen();
-        }
-
-        else if (strcmp(buffer, "mash --help") == 0) {
-            printf("MASH (Magayaga Automation Shell)\n");
-            printf("Available commands:\n");
-            printf("  alias <name>=<command>  Define an alias for a command\n");
-            printf("  cd <directory>          Change the current directory\n");
-            printf("  sh                      Execute a shell command\n");
-            printf("  time <command>          Time a simple command\n");
-            printf("  date                    Display the current date and time\n");
-            printf("  history                 Show command history\n");
-            printf("  exit                    Exit the shell\n");
-        }
-
-        else if (strcmp(buffer, "mash --version") == 0) {
-            printf("MASH (Magayaga Automation Shell) | Version: v1.0\n");
-            printf("Copyright (c) 2023 Cyril John Magayaga\n");
-            printf("MIT License: <https://opensource.org/license/mit/>\n");
-        }
-
-        else if (strcmp) {
-            // Execute other commands
-            execute_command(buffer);
-        }
-
-        else if (strcmp) {
-            // Execute other calculator commands
-            // calculator_command(command, argv);
-        }
-        else {
-            // Execute other history commands
-            execute_history_command(buffer);
-        }
-    }
+    // Load the command history from file
+    history = load_history_from_file();
 
     while (!exit_requested) {
-        // ... (main loop remains unchanged)
-
-        // Check for the "exit" command
-        if (strcmp(buffer, "exit") == 0) {
-            handle_exit_command();
+        printf("shell> ");
+        if (fgets(input, BUFFER_SIZE, stdin) == NULL) {
+            break;
         }
 
-        else {
-            // Add the command to history
-            history_head = add_to_history(history_head, buffer);
-        }
+        // Remove newline character from the input
+        input[strcspn(input, "\n")] = '\0';
+
+        // Add the command to history
+        history = add_to_history(history, input);
+
+        // Append the command to the history file
+        append_history_to_file(input);
+
+        // Execute the command
+        execute_command(input);
     }
 
-    // Free memory used for named directories
-    for (int i = 0; i < num_named_directories; i++) {
-        free(named_directories[i]);
-        free(directory_paths[i]);
-    }
-
-    // Free the history list
-    free_history(history_head);
+    // Free the command history
+    free_history(history);
 
     return 0;
 }
+
