@@ -9,6 +9,9 @@
 
 #define BUFFER_SIZE 1024
 #define HISTORY_FILE ".mash_history"
+#define STARTUP_SCRIPT_ETC "etc/.mash"
+#define STARTUP_SCRIPT_RC ".mashrc"
+#define STARTUP_SCRIPT_PROFILE ".mash_profile"
 
 // Check if the operating system is Windows
 bool is_windows() {
@@ -234,9 +237,36 @@ void execute_python_command(char* command) {
     execute_command(command_buffer);
 }
 
+// Run a startup or shutdown script if it exists
+void load_startup_script(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        // It's okay if the file doesn't exist, just skip
+        return;
+    }
+
+    char line[BUFFER_SIZE];
+    while (fgets(line, sizeof(line), file)) {
+        // Remove newline
+        line[strcspn(line, "\n")] = '\0';
+
+        if (strlen(line) > 0) {
+            printf("Running startup command: %s\n", line);
+            execute_command(line);
+        }
+    }
+
+    fclose(file);
+}
+
 int main() {
     char input[BUFFER_SIZE];
     HistoryNode* history = load_history_from_file();
+
+    // Load startup scripts
+    load_startup_script(STARTUP_SCRIPT_ETC);
+    load_startup_script(STARTUP_SCRIPT_RC);
+    load_startup_script(STARTUP_SCRIPT_PROFILE);
 
     // Register the signal handler for SIGINT (Ctrl+C)
     signal(SIGINT, handle_ctrlc);
