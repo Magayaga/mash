@@ -1,8 +1,8 @@
 # MASH
 
-**Mash**, originally an acronym for **Magayaga Automation Shell** is a command-based shell and command language created and developed on February 29, 2024 by Cyril John Magayaga.
+**Mash**, originally an acronym for **Magayaga Automation Shell** is a command-based shell and command language created and developed on February 29, 2024, by Cyril John Magayaga.
 
-It was released on February 29, 2024, available for **Windows** operating system.
+It was released on February 29, 2024, available for **Windows**, **Linux**, and **macOS** operating systems.
 
 ## Copyright
 
