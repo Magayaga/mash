@@ -6,6 +6,6 @@ It was released on February 29, 2024, available for **Windows**, **Linux**, and 
 
 ## Copyright
 
-Copyright (c) 2024 [Cyril John Magayaga](https://github.com/magayaga). All rights reserved.
+Copyright (c) 2024-2025 [Cyril John Magayaga](https://github.com/magayaga). All rights reserved.
 
 Licensed under the [MIT](LICENSE) license.
