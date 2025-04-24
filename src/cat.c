@@ -5,23 +5,37 @@
 void cat(const char* filename) {
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
-        printf("Error: File not found or unable to open.\n");
+        perror("Error opening file");
         return;
     }
 
     char buffer[BUFFER_SIZE];
     while (fgets(buffer, BUFFER_SIZE, file) != NULL) {
-        printf("%s", buffer);
+        if (fputs(buffer, stdout) == EOF) {
+            perror("Error writing to stdout");
+            fclose(file);
+            return;
+        }
     }
-    fclose(file);
+
+    if (ferror(file)) {
+        perror("Error reading from file");
+    }
+
+    if (fclose(file) == EOF) {
+        perror("Error closing file");
+    }
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <filename>\n", argv[0]);
+    if (argc < 2) {
+        printf("Usage: %s <filename> [...]\n", argv[0]);
         return 1;
     }
-    cat(argv[1]);
+
+    for (int i = 1; i < argc; i++) {
+        cat(argv[i]);
+    }
+
     return 0;
 }
-
